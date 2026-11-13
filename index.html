@@ -1,0 +1,978 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Frosty</title>
+<meta name="description" content="Habit-Tracker mit Streaks und Eis">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Frosty">
+<meta name="theme-color" content="#edf2f5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0a131a" media="(prefers-color-scheme: dark)">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=DM+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: one-column phone app. Ice vault on top, habit strips with a 7-day frost track below, bottom sheet for per-habit ice rules. */
+:root{
+  --bg:#edf2f5; --surface:#ffffff; --fg:#0f1c26; --muted:#566876;
+  --line:#d0dce4; --line-strong:#a6b8c5;
+  --ice:#1c93c8; --ice-ink:#09658f; --ice-wash:#d9eef8; --ice-line:#a9d5ea;
+  --ember:#e2571a; --ember-ink:#b8410d; --on-ember:#ffffff;
+  --warn:#b83232;
+  --f-display:"Bricolage Grotesque","Avenir Next","Segoe UI",system-ui,sans-serif;
+  --f-body:"Instrument Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"DM Mono",ui-monospace,"SF Mono",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0a131a; --surface:#111e28; --fg:#e8f0f5; --muted:#93a6b3;
+    --line:#22333f; --line-strong:#3d5262;
+    --ice:#5fc7f2; --ice-ink:#82d6f7; --ice-wash:#112c3a; --ice-line:#1f4a60;
+    --ember:#ff8a4a; --ember-ink:#ffa571; --on-ember:#1b0e06;
+    --warn:#ff8f8f;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0a131a; --surface:#111e28; --fg:#e8f0f5; --muted:#93a6b3;
+  --line:#22333f; --line-strong:#3d5262;
+  --ice:#5fc7f2; --ice-ink:#82d6f7; --ice-wash:#112c3a; --ice-line:#1f4a60;
+  --ember:#ff8a4a; --ember-ink:#ffa571; --on-ember:#1b0e06;
+  --warn:#ff8f8f;
+  color-scheme:dark;
+}
+
+*{box-sizing:border-box}
+html{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);background:var(--bg)}
+[hidden]{display:none!important}
+img{max-width:100%}
+body{
+  background:var(--bg); color:var(--fg);
+  font-family:var(--f-body); font-size:16px; line-height:1.45;
+  padding-block:20px 40px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+  -webkit-text-size-adjust:100%;
+  margin:0;
+}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+:focus-visible{outline:2px solid var(--ice);outline-offset:2px}
+h1,h2,h3,p,ul{margin:0}
+
+.ic{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.ic.solid{fill:currentColor}
+
+.app{max-width:34rem;margin:0 auto;display:flex;flex-direction:column;gap:22px}
+
+/* header */
+.top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.eyebrow{font-family:var(--f-mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+h1{font-family:var(--f-display);font-weight:800;font-size:34px;line-height:1.05;letter-spacing:-.025em;margin-top:6px}
+.sync{display:flex;align-items:center;gap:7px;font-family:var(--f-mono);font-size:11px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:0 12px;min-height:34px;flex:none;white-space:nowrap}
+.sync i{width:7px;height:7px;border-radius:50%;background:var(--line-strong);flex:none}
+.sync.ice i{background:var(--ice)}
+.sync.warn i{background:var(--warn)}
+
+/* vault */
+.vault{background:var(--ice-wash);border:1px solid var(--ice-line);border-radius:18px;padding:16px;display:grid;grid-template-columns:1fr auto;gap:10px 16px;align-items:center}
+.label{font-family:var(--f-mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500}
+.vault .label{color:var(--ice-ink)}
+.vcount{font-family:var(--f-display);font-weight:800;font-size:38px;line-height:1;color:var(--ice-ink);font-variant-numeric:tabular-nums;display:flex;align-items:baseline}
+.vcount span{font-size:20px;opacity:.6;font-weight:700}
+.vhead{display:flex;flex-direction:column;gap:12px}
+.slots{display:flex;gap:10px}
+.slot{position:relative;width:48px;height:52px;display:grid;place-items:center;color:var(--ice-ink)}
+.slot .hex{position:absolute;inset:0;width:100%;height:100%;fill:none;stroke:var(--ice-line);stroke-width:1.4;stroke-dasharray:3 3;stroke-linejoin:round}
+.slot .flake{width:26px;height:26px;position:relative;opacity:.25}
+.slot.full .hex{fill:var(--surface);stroke:var(--ice);stroke-width:1.8;stroke-dasharray:none}
+.slot.full .flake{opacity:1;color:var(--ice)}
+.slot.pop{animation:pop .6s cubic-bezier(.2,1.6,.4,1)}
+@keyframes pop{0%{transform:scale(.4) rotate(-30deg);opacity:0}100%{transform:none;opacity:1}}
+.vnote{grid-column:1/-1;font-size:14px;color:var(--muted);line-height:1.45}
+
+.sample{font-size:14px;color:var(--muted);border-left:2px solid var(--line-strong);padding-left:12px}
+.daycfg{display:flex;justify-content:space-between;align-items:center;gap:12px 16px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:14px}
+.daycfg>div:first-child{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1 1 12rem}
+.dnote{font-size:14px;color:var(--muted)}
+.daycfg .stepper output{min-width:7.5rem;font-size:20px}
+.stepper button:disabled{opacity:.3;cursor:not-allowed}
+
+/* list */
+.shead{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:6px}
+.shead .prog{font-family:var(--f-mono);font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.habits{list-style:none;padding:0}
+.habit{display:grid;grid-template-columns:auto minmax(0,1fr);gap:14px;padding:16px 0;border-top:1px solid var(--line);align-items:start}
+.habit:last-child{border-bottom:1px solid var(--line)}
+.check{width:48px;height:48px;border-radius:50%;border:2px solid var(--line-strong);background:transparent;color:var(--on-ember);display:grid;place-items:center;font-size:24px;transition:background-color .15s,border-color .15s,transform .15s}
+.check .ic{stroke-width:2.6;opacity:0;transition:opacity .15s}
+.check:active{transform:scale(.92)}
+.check[aria-pressed="true"]{background:var(--ember);border-color:var(--ember)}
+.check[aria-pressed="true"] .ic{opacity:1}
+.hbody{display:flex;flex-direction:column;gap:10px;min-width:0}
+.hline{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.hname{background:none;border:0;padding:0;text-align:left;font-weight:600;font-size:18px;line-height:1.25;overflow-wrap:anywhere;min-height:44px}
+.streak{display:flex;align-items:center;gap:5px;color:var(--ember);flex:none}
+.streak .ic{font-size:20px}
+.streak b{font-family:var(--f-display);font-weight:800;font-size:30px;line-height:1;font-variant-numeric:tabular-nums;color:var(--fg)}
+.streak.zero{color:var(--line-strong)}
+.streak.zero b{color:var(--muted)}
+.streak.pending .ic{fill:none}
+.streak:not(.pending):not(.zero) .ic{fill:currentColor}
+.track{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.day{display:flex;flex-direction:column;align-items:center;gap:4px}
+.day i{font-style:normal;font-family:var(--f-mono);font-size:10px;color:var(--muted);letter-spacing:.04em}
+.day.now i{color:var(--fg);font-weight:500}
+.day u{text-decoration:none;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:14px;border:1.5px solid transparent}
+.day u .ic{stroke-width:2.4}
+.day.done u{background:var(--ember);color:var(--on-ember)}
+.day.frozen u{background:var(--ice-wash);border-color:var(--ice);color:var(--ice-ink)}
+.day.miss u{border:1.5px dashed var(--line-strong)}
+.day.today u{border:2px solid var(--fg)}
+.day.none u{border:0;opacity:.3;background:radial-gradient(circle,var(--line-strong) 2px,transparent 2.5px)}
+.rule{align-self:flex-start;background:none;border:0;padding:0 0 0 0;min-height:32px;display:flex;align-items:center;gap:6px;font-family:var(--f-mono);font-size:12px;color:var(--ice-ink)}
+.rule .ic{font-size:14px}
+.empty{padding:18px 0;color:var(--muted);border-top:1px solid var(--line)}
+.add{margin-top:14px;width:100%;min-height:52px;border-radius:14px;border:1.5px dashed var(--line-strong);background:transparent;font-weight:600;color:var(--ice-ink);transition:background-color .15s}
+.add:hover{background:var(--ice-wash)}
+
+/* log */
+.log h2{margin-bottom:8px}
+.log ul{list-style:none;padding:0;display:flex;flex-direction:column}
+.log li{display:grid;grid-template-columns:5.5rem minmax(0,1fr);gap:10px;padding:9px 0;border-top:1px solid var(--line);font-size:14px}
+.log li:last-child{border-bottom:1px solid var(--line)}
+.log time{font-family:var(--f-mono);font-size:11px;color:var(--muted);padding-top:2px}
+.log li span{overflow-wrap:anywhere}
+.log li.use span,.log li.earn span,.log li.milestone span{color:var(--fg)}
+.log li.lost span{color:var(--warn)}
+
+
+/* sheet */
+.scrim{position:fixed;inset:0;background:rgba(6,14,20,.55);z-index:20;opacity:0;transition:opacity .25s}
+.scrim.open{opacity:1}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:21;background:var(--surface);color:var(--fg);border-radius:22px 22px 0 0;max-height:92%;overflow-y:auto;overscroll-behavior:contain;
+  padding-top:16px;padding-bottom:calc(22px + env(safe-area-inset-bottom,0px));
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  transform:translateY(100%);transition:transform .28s cubic-bezier(.2,.8,.2,1);box-shadow:0 -8px 40px rgba(0,0,0,.25)}
+.sheet.open{transform:none}
+.sheet-in{max-width:34rem;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+.sheet-head{display:flex;justify-content:space-between;align-items:center}
+.sheet-head h2{font-family:var(--f-display);font-weight:700;font-size:24px;letter-spacing:-.02em}
+.close{width:44px;height:44px;border-radius:50%;border:0;background:var(--bg);font-size:24px;line-height:1;display:grid;place-items:center}
+.fl{display:flex;justify-content:space-between;align-items:baseline;font-family:var(--f-mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+.fl output{color:var(--ice-ink);font-size:13px;letter-spacing:0}
+input[type=text],input[type=password],textarea{width:100%;min-height:48px;border-radius:12px;border:1.5px solid var(--line-strong);background:var(--bg);padding:10px 14px;font-size:16px}
+input[type=text]:focus-visible,input[type=password]:focus-visible,textarea:focus-visible{border-color:var(--ice);outline:none;box-shadow:0 0 0 3px var(--ice-wash)}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+textarea{resize:vertical;min-height:84px;line-height:1.4;font-family:var(--f-body);display:block}
+.hnote{background:none;border:0;padding:0;text-align:left;font-size:14px;line-height:1.4;color:var(--muted);white-space:pre-line;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;width:100%}
+.chip{min-height:36px;padding:0 14px;border-radius:999px;border:1px solid var(--line-strong);background:transparent;font-size:14px}
+.chip:hover{background:var(--ice-wash)}
+.stepper{display:flex;align-items:center;gap:6px}
+.stepper button{width:48px;height:48px;border-radius:12px;border:1.5px solid var(--line-strong);background:transparent;font-size:22px;line-height:1}
+.stepper output{min-width:8.5rem;text-align:center;font-family:var(--f-display);font-weight:700;font-size:22px;font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;height:36px;accent-color:var(--ice)}
+.rule-text{font-size:14.5px;color:var(--muted);background:var(--ice-wash);border-radius:12px;padding:12px 14px}
+.primary{min-height:52px;border-radius:14px;border:0;background:var(--fg);color:var(--bg);font-weight:600;font-size:16px}
+.primary:disabled{opacity:.35;cursor:not-allowed}
+.dz{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-height:44px}
+.dz button{min-height:44px;padding:0 14px;border-radius:12px;border:1.5px solid var(--line-strong);background:transparent;font-weight:500}
+.dz .danger{color:var(--warn);border-color:var(--warn)}
+.dz span{font-size:14px;color:var(--muted)}
+
+/* settings */
+.set-group{display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--line);padding-top:16px}
+.set-group .fl{margin:0;font-weight:500}
+.set-status{font-size:15px;line-height:1.45}
+.set-status.ok{color:var(--ice-ink)}
+.set-status.bad{color:var(--warn)}
+.hint{font-size:14px;color:var(--muted);line-height:1.45}
+.hint:empty{display:none}
+.stack{display:flex;flex-direction:column;gap:10px}
+#f-import,#exp-out{font-family:var(--f-mono);font-size:12px;min-height:72px}
+
+/* toast */
+.toast{position:fixed;left:0;right:0;bottom:0;z-index:30;pointer-events:none;transform:translateY(150%);transition:transform .3s cubic-bezier(.2,.8,.2,1);
+  padding:0 max(16px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.toast.show{transform:none}
+.toast-in{max-width:34rem;margin:0 auto;background:var(--fg);color:var(--bg);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;font-size:15px;line-height:1.4;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+.toast-in p{display:flex;gap:10px;align-items:flex-start}
+.toast-in .ic{font-size:20px;margin-top:1px;color:var(--ice)}
+.toast-in .warn{color:var(--warn)}
+
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="i-flame" viewBox="0 0 24 24"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></symbol>
+  <symbol id="i-ice" viewBox="0 0 24 24">
+    <path d="M12 3v18M9.4 5.6L12 8.2l2.6-2.6M9.4 18.4L12 15.8l2.6 2.6"/>
+    <path transform="rotate(60 12 12)" d="M12 3v18M9.4 5.6L12 8.2l2.6-2.6M9.4 18.4L12 15.8l2.6 2.6"/>
+    <path transform="rotate(120 12 12)" d="M12 3v18M9.4 5.6L12 8.2l2.6-2.6M9.4 18.4L12 15.8l2.6 2.6"/>
+  </symbol>
+  <symbol id="i-hex" viewBox="0 0 48 52"><path d="M24 2.5l19.5 11.25v22.5L24 47.5 4.5 36.25v-22.5z"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+</svg>
+
+<main class="app">
+  <header class="top">
+    <div>
+      <p class="eyebrow" id="date"></p>
+      <h1>Frosty</h1>
+    </div>
+    <button class="sync" id="sync" type="button" aria-label="Sync und Einstellungen"><i></i><span>Sync einrichten</span></button>
+  </header>
+
+  <section class="vault" aria-labelledby="vlabel">
+    <div class="vhead">
+      <span class="label" id="vlabel">Eis-Vorrat</span>
+      <div class="slots" id="slots"></div>
+    </div>
+    <div class="vcount" id="vcount"></div>
+    <p class="vnote">Springt automatisch ein, wenn du einen Tag verpasst. Gilt für alle Habits.</p>
+  </section>
+
+  <p class="sample" id="sample" hidden>Beispiele zum Ausprobieren. Sie verschwinden, sobald du dein erstes eigenes Habit anlegst.</p>
+
+  <section aria-labelledby="hlabel">
+    <div class="shead"><h2 class="label" id="hlabel">Heute</h2><span class="prog" id="progress"></span></div>
+    <ul class="habits" id="habits"></ul>
+    <p class="empty" id="empty" hidden>Noch keine Habits. Lege dein erstes an.</p>
+    <button class="add" id="add" type="button">Habit hinzufügen</button>
+  </section>
+
+  <section class="log" id="logsec" hidden>
+    <h2 class="label">Verlauf</h2>
+    <ul id="log"></ul>
+  </section>
+
+  <section class="daycfg" aria-labelledby="dlabel">
+    <div><span class="label" id="dlabel">Tag endet um</span><p class="dnote" id="dnote"></p></div>
+    <div class="stepper" role="group" aria-labelledby="dlabel">
+      <button id="d-minus" type="button" aria-label="Eine Stunde früher">−</button>
+      <output id="d-out"></output>
+      <button id="d-plus" type="button" aria-label="Eine Stunde später">+</button>
+    </div>
+  </section>
+</main>
+
+<div class="scrim" id="scrim" hidden></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" hidden>
+  <div class="sheet-in">
+    <div class="sheet-head">
+      <h2 id="sheet-title">Neues Habit</h2>
+      <button class="close" id="sheet-close" type="button" aria-label="Schließen"><svg class="ic" style="font-size:20px"><use href="#i-x"/></svg></button>
+    </div>
+    <div>
+      <label class="fl" for="f-name">Name</label>
+      <input id="f-name" type="text" maxlength="40" autocomplete="off" placeholder="z. B. Sport">
+      <div class="chips" id="chips"></div>
+    </div>
+    <div>
+      <label class="fl" for="f-note">Notiz</label>
+      <textarea id="f-note" maxlength="500" rows="3" placeholder="Optional, z. B. Plan, Gründe, Tipps"></textarea>
+    </div>
+    <div>
+      <div class="fl" id="a-label">Eis kann fallen ab</div>
+      <div class="stepper" role="group" aria-labelledby="a-label">
+        <button id="a-minus" type="button" aria-label="Einen Tag weniger">−</button>
+        <output id="a-out"></output>
+        <button id="a-plus" type="button" aria-label="Einen Tag mehr">+</button>
+      </div>
+    </div>
+    <div>
+      <label class="fl" for="f-chance"><span>Wahrscheinlichkeit</span><output id="c-out" for="f-chance"></output></label>
+      <input id="f-chance" type="range" min="0" max="100" step="5">
+    </div>
+    <p class="rule-text" id="rule-text"></p>
+    <button class="primary" id="sheet-ok" type="button">Fertig</button>
+    <div class="dz" id="dz">
+      <button id="del" type="button">Habit löschen</button>
+      <span id="del-ask" hidden>Wirklich löschen? Die Streak geht verloren.</span>
+      <button class="danger" id="del-yes" type="button" hidden>Ja, löschen</button>
+      <button id="del-no" type="button" hidden>Abbrechen</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet" id="settings" role="dialog" aria-modal="true" aria-labelledby="set-title" hidden>
+  <div class="sheet-in">
+    <div class="sheet-head">
+      <h2 id="set-title">Einstellungen</h2>
+      <button class="close" id="set-close" type="button" aria-label="Schließen"><svg class="ic" style="font-size:20px"><use href="#i-x"/></svg></button>
+    </div>
+
+    <section class="set-group" aria-labelledby="g-sync">
+      <h3 class="fl" id="g-sync">Sync mit GitHub</h3>
+      <p class="set-status" id="set-status"></p>
+      <div class="stack" id="sync-off">
+        <label class="fl" for="f-token">Token</label>
+        <input id="f-token" type="password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="ghp_…">
+        <p class="hint" id="tok-msg"></p>
+        <p class="hint">Der Token mit dem Recht „gist“. Die App legt damit einen geheimen Speicher für deine Daten an, den auch das Widget liest.</p>
+        <button class="primary" id="connect" type="button">Verbinden</button>
+      </div>
+      <div class="dz" id="sync-on" hidden>
+        <button id="sync-now" type="button">Jetzt abgleichen</button>
+        <button id="disconnect" type="button">Trennen</button>
+      </div>
+    </section>
+
+    <section class="set-group" aria-labelledby="g-data">
+      <h3 class="fl" id="g-data">Daten übernehmen</h3>
+      <label class="fl" for="f-import">Kopierte Daten aus der alten App</label>
+      <textarea id="f-import" rows="3" spellcheck="false" autocapitalize="off" autocorrect="off" placeholder="Hier einfügen"></textarea>
+      <p class="hint" id="imp-msg"></p>
+      <div class="dz">
+        <button id="imp" type="button">Importieren</button>
+        <span id="imp-ask" hidden>Ersetzt alle Habits in dieser App.</span>
+        <button class="danger" id="imp-yes" type="button" hidden>Ja, ersetzen</button>
+        <button id="imp-no" type="button" hidden>Abbrechen</button>
+      </div>
+    </section>
+
+    <section class="set-group" aria-labelledby="g-backup">
+      <h3 class="fl" id="g-backup">Sicherung</h3>
+      <p class="hint">Kopiert alle Daten als Text, zum Beispiel in eine Notiz.</p>
+      <div class="dz"><button id="exp" type="button">Daten kopieren</button></div>
+      <textarea id="exp-out" rows="3" readonly hidden aria-label="Deine Daten als Text"></textarea>
+    </section>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"><div class="toast-in" id="toast-in"></div></div>
+
+<script>
+(function(){
+'use strict';
+
+/*LOGIC-START*/
+const MAX=3, MILESTONES=[7,30,100];
+const pad=n=>String(n).padStart(2,'0');
+const keyOf=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+const parseKey=k=>{const p=k.split('-').map(Number);return new Date(p[0],p[1]-1,p[2],12)};
+const addDays=(k,n)=>{const d=parseKey(k);d.setDate(d.getDate()+n);return keyOf(d)};
+
+function streakEnding(h,end){
+  const D=new Set(h.done),F=new Set(h.frozen);
+  let d=end,n=0;
+  for(let i=0;i<20000;i++){
+    if(D.has(d))n++;else if(!F.has(d))break;
+    d=addDays(d,-1);
+  }
+  return n;
+}
+function currentStreak(h,today){
+  return streakEnding(h,h.done.indexOf(today)>=0?today:addDays(today,-1));
+}
+
+/* Resolves every day before today that is still open: freezes missed days where
+   the vault covers the whole gap, otherwise lets the streak end. */
+function rollover(S,today){
+  const y=addDays(today,-1),events=[];
+  let changed=false;
+  const order=S.habits.map(h=>{
+    const all=h.done.concat(h.frozen).filter(k=>k<=y).sort();
+    const last=all[all.length-1];
+    return {h:h,s:last?streakEnding(h,last):0};
+  }).sort((a,b)=>b.s-a.s);
+  order.forEach(o=>{
+    const h=o.h;
+    if(addDays(h.checked,1)>y)return;
+    const D=new Set(h.done);
+    let d=addDays(h.checked,1);
+    while(d<=y){
+      if(D.has(d)){d=addDays(d,1);continue;}
+      let r=0,e=d;
+      while(e<=y&&!D.has(e)){r++;e=addDays(e,1);}
+      const prev=addDays(d,-1);
+      if(D.has(prev)||h.frozen.indexOf(prev)>=0){
+        const before=streakEnding(h,prev);
+        if(S.freezes>=r){
+          for(let k=0;k<r;k++)h.frozen.push(addDays(d,k));
+          S.freezes-=r;
+          events.push({k:'use',h:h.name,n:before,r:r});
+        }else{
+          events.push({k:'lost',h:h.name,n:before});
+        }
+      }
+      d=e;
+    }
+    h.checked=y;
+    changed=true;
+  });
+  return {changed:changed,events:events};
+}
+
+/* One drop attempt when a habit is completed for the day. */
+function rollFor(S,h,today,rnd){
+  if(S.freezes>=MAX)return null;
+  const s=currentStreak(h,today);
+  if(MILESTONES.indexOf(s)>=0){S.freezes++;return {k:'milestone',h:h.name,n:s};}
+  if(h.chance>0&&s>=h.after){
+    if(rnd()*100<h.chance){S.freezes++;return {k:'earn',h:h.name,n:s};}
+  }
+  return null;
+}
+/*LOGIC-END*/
+
+const $=(s,r)=>(r||document).querySelector(s);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid=()=>Math.random().toString(36).slice(2,9);
+let DAYSTART=0;
+const todayKey=()=>keyOf(new Date(Date.now()-DAYSTART*3600000));
+const WD=['So','Mo','Di','Mi','Do','Fr','Sa'];
+const days=n=>n+' '+(n===1?'Tag':'Tage');
+const ICE='<svg class="ic"><use href="#i-ice"/></svg>';
+const FLAME='<svg class="ic"><use href="#i-flame"/></svg>';
+const CHECK='<svg class="ic"><use href="#i-check"/></svg>';
+
+/* ---------- state ---------- */
+const KEY='frostspur-v1';
+let curDay=todayKey();
+let S=null;
+let popIdx=-1;
+
+function sampleState(){
+  const t=todayKey(),y=addDays(t,-1);
+  const run=(end,len)=>Array.from({length:len},(_,i)=>addDays(end,-i));
+  return {v:1,freezes:2,dayStart:0,sample:true,updatedAt:0,log:[],habits:[
+    {id:'s1',name:'Sport',after:3,chance:20,created:addDays(t,-20),checked:y,rollDate:'',done:run(y,12),frozen:[]},
+    {id:'s2',name:'Lesen',after:5,chance:35,created:addDays(t,-10),checked:y,rollDate:'',done:[addDays(t,-1),addDays(t,-2),addDays(t,-4),addDays(t,-5),addDays(t,-6)],frozen:[addDays(t,-3)]},
+    {id:'s3',name:'Gitarre üben',after:2,chance:15,created:addDays(t,-12),checked:y,rollDate:'',done:[addDays(t,-5),addDays(t,-6)],frozen:[]}
+  ]};
+}
+function normalize(s){
+  s.v=1;
+  s.freezes=Math.max(0,Math.min(MAX,Number(s.freezes)||0));
+  s.sample=!!s.sample;
+  s.dayStart=Math.max(0,Math.min(6,Math.round(Number(s.dayStart)||0)));
+  s.updatedAt=Number(s.updatedAt)||0;
+  s.log=Array.isArray(s.log)?s.log:[];
+  s.habits=(Array.isArray(s.habits)?s.habits:[]).map(h=>({
+    id:String(h.id||uid()),
+    name:String(h.name||'Habit').slice(0,40),
+    after:Math.max(1,Math.min(30,Number(h.after)||3)),
+    chance:Math.max(0,Math.min(100,Number(h.chance)||0)),
+    note:String(h.note||'').slice(0,500),
+    created:h.created||curDay,
+    checked:h.checked||addDays(h.created||curDay,-1),
+    rollDate:h.rollDate||'',
+    done:Array.isArray(h.done)?h.done.slice():[],
+    frozen:Array.isArray(h.frozen)?h.frozen.slice():[]
+  }));
+  return s;
+}
+function loadLocal(){
+  try{const raw=localStorage.getItem(KEY);if(raw)return normalize(JSON.parse(raw));}catch(e){}
+  return null;
+}
+S=loadLocal()||sampleState();
+DAYSTART=S.dayStart;curDay=todayKey();
+
+/* ---------- saving + GitHub sync ---------- */
+const CFG_KEY='frostspur-sync';
+const FILE='frostspur.json';
+const API='https://api.github.com';
+let cfg=null;
+try{cfg=JSON.parse(localStorage.getItem(CFG_KEY)||'null');}catch(e){cfg=null;}
+let ready=false,dirty=false,pushing=false,pulling=false,pushTimer=null,lastSync=0;
+let syncState='none',syncMsg='';
+
+function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
+function saveCfg(){try{if(cfg)localStorage.setItem(CFG_KEY,JSON.stringify(cfg));else localStorage.removeItem(CFG_KEY);}catch(e){}}
+function persist(){
+  S.updatedAt=Date.now();
+  saveLocal();
+  schedulePush();
+}
+
+function SyncError(kind,msg){const e=new Error(msg);e.kind=kind;return e;}
+async function gh(path,opts){
+  opts=opts||{};
+  const headers={'Accept':'application/vnd.github+json','Authorization':'Bearer '+cfg.token};
+  if(opts.body)headers['Content-Type']='application/json';
+  let r;
+  try{
+    r=await fetch(API+path,{method:opts.method||'GET',cache:'no-store',headers:headers,body:opts.body?JSON.stringify(opts.body):undefined});
+  }catch(e){throw SyncError('offline','Keine Verbindung.');}
+  if(r.status===401)throw SyncError('auth','GitHub kennt diesen Token nicht.');
+  if(r.status===404)throw SyncError('missing','Nicht gefunden.');
+  if(r.status===403||r.status===429)throw SyncError('limit','GitHub lehnt die Anfrage ab. Hat der Token das Recht „gist“?');
+  if(!r.ok)throw SyncError('server','GitHub antwortet mit Fehler '+r.status+'.');
+  return r.json();
+}
+function payload(){
+  const base=S.sample&&!S.updatedAt?{updatedAt:0,habits:[]}:S;
+  return JSON.stringify(Object.assign({},base,{appUrl:location.origin+location.pathname}));
+}
+async function findGist(){
+  const list=await gh('/gists?per_page=100');
+  const g=(Array.isArray(list)?list:[]).find(x=>x&&x.files&&x.files[FILE]);
+  return g?g.id:null;
+}
+async function createGist(){
+  try{
+    const g=await gh('/gists',{method:'POST',body:{description:'Frosty – Habit-Daten',public:false,files:{[FILE]:{content:payload()}}}});
+    return g.id;
+  }catch(e){
+    if(e.kind==='missing')throw SyncError('scope','Der Token darf keine Gists anlegen. Erstelle ihn neu mit Haken bei „gist“.');
+    throw e;
+  }
+}
+async function ensureGist(){
+  if(cfg.gistId)return;
+  cfg.gistId=(await findGist())||(await createGist());
+  saveCfg();
+}
+async function pull(){
+  if(!cfg||pulling)return;
+  pulling=true;
+  if(syncState!=='saved')setSync('loading');
+  try{
+    await ensureGist();
+    let g;
+    try{g=await gh('/gists/'+cfg.gistId);}
+    catch(e){
+      if(e.kind!=='missing')throw e;
+      cfg.gistId=null;await ensureGist();g=await gh('/gists/'+cfg.gistId);
+    }
+    const f=g&&g.files&&g.files[FILE];
+    let R={};
+    if(f&&f.content){try{R=JSON.parse(f.content)||{};}catch(e){R={};}}
+    ready=true;lastSync=Date.now();
+    const ru=Number(R.updatedAt)||0,lu=S.updatedAt||0;
+    if(ru>lu&&Array.isArray(R.habits))adopt(R);
+    else if(lu>ru||!R.appUrl)dirty=true;
+    pulling=false;
+    if(dirty)await push();else setSync('saved');
+  }catch(e){pulling=false;fail(e);}
+}
+function schedulePush(){
+  if(!cfg)return;
+  dirty=true;
+  if(syncState!=='bad')setSync('saving');
+  clearTimeout(pushTimer);
+  pushTimer=setTimeout(push,1500);
+}
+async function push(){
+  clearTimeout(pushTimer);pushTimer=null;
+  if(!cfg||!dirty||pushing)return;
+  if(!ready||!cfg.gistId){pull();return;}
+  pushing=true;dirty=false;
+  try{
+    await gh('/gists/'+cfg.gistId,{method:'PATCH',body:{files:{[FILE]:{content:payload()}}}});
+    lastSync=Date.now();
+    if(!dirty)setSync('saved');
+  }catch(e){
+    dirty=true;
+    if(e.kind==='missing'){cfg.gistId=null;ready=false;}
+    fail(e);
+  }
+  pushing=false;
+  if(dirty&&!pushTimer&&syncState==='saving')pushTimer=setTimeout(push,1500);
+}
+function fail(e){
+  const k=e&&e.kind;
+  if(k==='offline')setSync('offline');
+  else if(k==='auth'||k==='scope'||k==='limit')setSync('bad',e.message);
+  else setSync('error',e&&e.message||'');
+}
+function resync(){
+  if(!cfg)return;
+  if(dirty)push();else if(Date.now()-lastSync>20000)pull();
+}
+window.addEventListener('online',resync);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)resync();});
+setInterval(()=>{if(cfg&&dirty&&(syncState==='offline'||syncState==='error'))push();},60000);
+
+const SYNC={
+  none:['Sync einrichten',''],
+  loading:['Verbinde …',''],
+  saving:['Speichert …',''],
+  saved:['Gesichert','ice'],
+  offline:['Offline','warn'],
+  error:['Sync-Fehler','warn'],
+  bad:['Sync-Fehler','warn']
+};
+function setSync(k,msg){
+  syncState=k;syncMsg=msg||'';
+  const el=$('#sync'),d=SYNC[k]||SYNC.none;
+  el.className='sync '+d[1];
+  $('span',el).textContent=d[0];
+  renderSettings();
+}
+function hhmm(t){return new Intl.DateTimeFormat('de-DE',{hour:'2-digit',minute:'2-digit'}).format(new Date(t));}
+function renderSettings(){
+  const st=$('#set-status');if(!st)return;
+  let txt,cls='';
+  if(!cfg){txt='Nicht verbunden. Deine Daten liegen nur auf diesem Gerät, und das Widget sieht sie nicht.';}
+  else if(syncState==='saved'){txt='Verbunden. Zuletzt abgeglichen um '+hhmm(lastSync||Date.now())+' Uhr.';cls='ok';}
+  else if(syncState==='offline'){txt='Offline. Deine Änderungen sind auf dem Gerät gespeichert und werden abgeglichen, sobald du wieder Netz hast.';}
+  else if(syncState==='bad'){txt=syncMsg+' Füge den Token neu ein.';cls='bad';}
+  else if(syncState==='error'){txt='Abgleich gerade nicht möglich. '+(syncMsg?syncMsg+' ':'')+'Die App versucht es später erneut.';cls='bad';}
+  else txt='Gleicht ab …';
+  st.textContent=txt;st.className='set-status '+cls;
+  const showForm=!cfg||syncState==='bad';
+  $('#sync-off').hidden=!showForm;
+  $('#sync-on').hidden=!cfg||syncState==='bad';
+  $('#connect').textContent=cfg?'Neu verbinden':'Verbinden';
+}
+
+/* ---------- events and toasts ---------- */
+function eventToast(e){
+  if(e.k==='use')return {t:(e.r>1?e.r+' Eis haben':'Ein Eis hat')+' „'+e.h+'“ gerettet. Die Streak bleibt bei '+days(e.n)+'.',w:false};
+  if(e.k==='lost')return {t:'„'+e.h+'“: Die Streak von '+days(e.n)+' ist gerissen, es war nicht genug Eis da.',w:true};
+  if(e.k==='milestone')return {t:days(e.n)+' in Folge bei „'+e.h+'“. Das bringt sicher ein Eis.',w:false};
+  return {t:'Eis gefunden. Es liegt in deinem Vorrat.',w:false};
+}
+function logLine(e){
+  if(e.k==='use')return 'Eis verbraucht · '+e.h+', Streak von '+days(e.n)+' gerettet';
+  if(e.k==='lost')return 'Streak verloren · '+e.h+', '+days(e.n);
+  if(e.k==='milestone')return 'Meilenstein · '+e.h+', '+days(e.n)+', sicheres Eis';
+  return 'Eis gefunden · '+e.h+', Tag '+e.n;
+}
+let toastTimer=null;
+function toastMany(list){
+  if(!list.length)return;
+  $('#toast-in').innerHTML=list.map(x=>'<p>'+(x.w?'<svg class="ic warn"><use href="#i-x"/></svg>':ICE)+'<span>'+esc(x.t)+'</span></p>').join('');
+  const el=$('#toast');el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>el.classList.remove('show'),5200+list.length*1200);
+}
+function record(e){
+  S.log.unshift(Object.assign({d:curDay},e));
+  S.log=S.log.slice(0,30);
+}
+
+/* ---------- processing ---------- */
+function process(announce){
+  const res=rollover(S,curDay);
+  res.events.forEach(record);
+  if(res.changed&&(!S.sample||S.updatedAt>0))persist();
+  if(announce)toastMany(res.events.map(eventToast));
+}
+
+/* ---------- actions ---------- */
+function findHabit(id){return S.habits.find(h=>h.id===id);}
+function toggle(id){
+  const h=findHabit(id);if(!h)return;
+  const i=h.done.indexOf(curDay);
+  if(i>=0){
+    h.done.splice(i,1);
+  }else{
+    h.done.push(curDay);
+    if(h.rollDate!==curDay){
+      h.rollDate=curDay;
+      const e=rollFor(S,h,curDay,Math.random);
+      if(e){
+        record(e);popIdx=S.freezes-1;
+        toastMany([eventToast(e)]);
+      }
+    }
+  }
+  persist();render();
+}
+function addHabit(name,after,chance,note){
+  if(S.sample){S.habits=[];S.freezes=0;S.log=[];S.sample=false;}
+  S.habits.push({id:uid(),name:name,after:after,chance:chance,note:note||'',created:curDay,checked:addDays(curDay,-1),rollDate:'',done:[],frozen:[]});
+  persist();render();
+}
+function deleteHabit(id){
+  S.habits=S.habits.filter(h=>h.id!==id);
+  persist();render();
+}
+
+/* ---------- render ---------- */
+function trackHtml(h){
+  const D=new Set(h.done),F=new Set(h.frozen);
+  let cells='';const aria=[];
+  for(let i=6;i>=0;i--){
+    const k=addDays(curDay,-i),lab=WD[parseKey(k).getDay()];
+    let cls,ic='',txt;
+    if(D.has(k)){cls='done';ic=CHECK;txt='erledigt';}
+    else if(F.has(k)){cls='frozen';ic=ICE;txt='Eis';}
+    else if(k===curDay){cls='today';txt='offen';}
+    else if(k<h.created){cls='none';txt='noch nicht angelegt';}
+    else{cls='miss';txt='verpasst';}
+    cells+='<span class="day '+cls+(k===curDay?' now':'')+'"><i>'+lab+'</i><u>'+ic+'</u></span>';
+    aria.push(lab+' '+txt);
+  }
+  return '<div class="track" role="img" aria-label="Letzte 7 Tage: '+aria.join(', ')+'">'+cells+'</div>';
+}
+function renderVault(){
+  const n=S.freezes;
+  $('#vcount').innerHTML='<b style="font-weight:inherit">'+n+'</b><span>/'+MAX+'</span>';
+  const slots=$('#slots');
+  slots.setAttribute('role','img');
+  slots.setAttribute('aria-label',n+' von '+MAX+' Eis im Vorrat');
+  slots.innerHTML=Array.from({length:MAX},(_,i)=>
+    '<span class="slot '+(i<n?'full':'empty')+(popIdx===i?' pop':'')+'"><svg class="hex"><use href="#i-hex"/></svg><svg class="ic flake"><use href="#i-ice"/></svg></span>'
+  ).join('');
+  popIdx=-1;
+}
+function renderList(){
+  const list=$('#habits');
+  let doneN=0;
+  list.innerHTML=S.habits.map(h=>{
+    const done=h.done.indexOf(curDay)>=0;
+    if(done)doneN++;
+    const s=currentStreak(h,curDay);
+    const cls=s===0?'zero':(done?'':'pending');
+    const rule=h.chance>0?'Eis ab Tag '+h.after+' · '+h.chance+' %':'Kein Eis';
+    return '<li class="habit" data-id="'+esc(h.id)+'">'+
+      '<button class="check" type="button" data-act="toggle" aria-pressed="'+done+'" aria-label="'+esc(h.name)+' heute erledigt">'+CHECK+'</button>'+
+      '<div class="hbody">'+
+        '<div class="hline"><button class="hname" type="button" data-act="edit">'+esc(h.name)+'</button>'+
+        '<span class="streak '+cls+'" aria-label="Streak: '+days(s)+'">'+FLAME+'<b>'+s+'</b></span></div>'+
+        (h.note?'<button class="hnote" type="button" data-act="edit">'+esc(h.note)+'</button>':'')+
+        trackHtml(h)+
+        '<button class="rule" type="button" data-act="edit">'+ICE+'<span>'+rule+'</span></button>'+
+      '</div></li>';
+  }).join('');
+  $('#empty').hidden=S.habits.length>0;
+  $('#progress').textContent=S.habits.length?doneN+' von '+S.habits.length+' erledigt':'';
+}
+function dayLabel(k){
+  if(k===curDay)return 'Heute';
+  if(k===addDays(curDay,-1))return 'Gestern';
+  return new Intl.DateTimeFormat('de-DE',{weekday:'short',day:'numeric',month:'short'}).format(parseKey(k));
+}
+function renderLog(){
+  const items=S.log.slice(0,6);
+  $('#logsec').hidden=!items.length;
+  $('#log').innerHTML=items.map(e=>'<li class="'+esc(e.k)+'"><time>'+esc(dayLabel(e.d))+'</time><span>'+esc(logLine(e))+'</span></li>').join('');
+}
+function renderDay(){
+  $('#d-out').textContent=DAYSTART===0?'Mitternacht':DAYSTART+':00 Uhr';
+  $('#d-minus').disabled=DAYSTART<=0;
+  $('#d-plus').disabled=DAYSTART>=6;
+  $('#dnote').textContent=DAYSTART===0?'Ein neuer Tag beginnt um 0:00 Uhr.':'Bis '+DAYSTART+':00 Uhr zählt noch der Vortag.';
+}
+function setDayStart(v){
+  v=Math.max(0,Math.min(6,v));
+  if(v===DAYSTART)return;
+  S.dayStart=v;DAYSTART=v;
+  const t=todayKey();
+  if(t!==curDay){curDay=t;process(true);}
+  persist();render();
+}
+function render(){
+  $('#date').textContent=new Intl.DateTimeFormat('de-DE',{weekday:'long',day:'numeric',month:'long'}).format(parseKey(curDay));
+  $('#sample').hidden=!S.sample;
+  renderVault();renderList();renderLog();renderDay();
+}
+
+/* ---------- sheet ---------- */
+const SUGGEST=['Sport','Lesen','Tippen üben','Meditieren','Wasser trinken','Journal'];
+const sheet={mode:'new',id:null,name:'',after:3,chance:20,note:''};
+let closeTimer=null;
+
+function ruleText(a,c){
+  if(c<=0)return 'Dieses Habit lässt kein Eis fallen.';
+  if(a<=1)return 'Bei jedem erledigten Tag fällt mit '+c+' % Wahrscheinlichkeit ein Eis.';
+  return 'Ab dem '+a+'. Tag in Folge fällt bei jedem erledigten Tag mit '+c+' % Wahrscheinlichkeit ein Eis.';
+}
+function syncSheet(){
+  $('#a-out').textContent=sheet.after===1?'Tag 1':'Tag '+sheet.after;
+  $('#c-out').textContent=sheet.chance+' %';
+  $('#rule-text').textContent=ruleText(sheet.after,sheet.chance);
+  $('#a-minus').disabled=sheet.after<=1;
+  $('#a-plus').disabled=sheet.after>=30;
+  if(sheet.mode==='new')$('#sheet-ok').disabled=!sheet.name.trim();
+}
+function applyEdit(){
+  if(sheet.mode!=='edit')return;
+  const h=findHabit(sheet.id);if(!h)return;
+  h.after=sheet.after;h.chance=sheet.chance;h.note=sheet.note;
+  if(sheet.name.trim())h.name=sheet.name.trim();
+  persist();renderList();
+}
+function openSheet(mode,id){
+  sheet.mode=mode;sheet.id=id||null;
+  if(mode==='edit'){
+    const h=findHabit(id);if(!h)return;
+    sheet.name=h.name;sheet.after=h.after;sheet.chance=h.chance;sheet.note=h.note||'';
+  }else{
+    sheet.name='';sheet.after=3;sheet.chance=20;sheet.note='';
+  }
+  const isNew=mode==='new';
+  $('#sheet-title').textContent=isNew?'Neues Habit':'Habit bearbeiten';
+  $('#f-name').value=sheet.name;
+  $('#f-note').value=sheet.note;
+  $('#f-chance').value=sheet.chance;
+  $('#sheet-ok').textContent=isNew?'Anlegen':'Fertig';
+  $('#chips').hidden=!isNew;
+  $('#dz').hidden=isNew;
+  resetDelete();
+  syncSheet();
+  showPanel($('#sheet'),isNew?'#f-name':'#sheet-close');
+}
+function closeSheet(){
+  if(sheet.mode==='edit'&&!sheet.name.trim())renderList();
+  hidePanel();
+}
+let openPanel=null;
+function showPanel(el,focusSel){
+  clearTimeout(closeTimer);
+  if(openPanel&&openPanel!==el){openPanel.classList.remove('open');openPanel.hidden=true;}
+  openPanel=el;
+  $('#scrim').hidden=false;el.hidden=false;
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    $('#scrim').classList.add('open');el.classList.add('open');
+    try{$(focusSel).focus();}catch(e){}
+  }));
+}
+function hidePanel(){
+  if(!openPanel)return;
+  const el=openPanel;openPanel=null;
+  $('#scrim').classList.remove('open');el.classList.remove('open');
+  clearTimeout(closeTimer);
+  closeTimer=setTimeout(()=>{$('#scrim').hidden=true;el.hidden=true;},300);
+}
+function resetDelete(){
+  $('#del').hidden=false;$('#del-ask').hidden=true;$('#del-yes').hidden=true;$('#del-no').hidden=true;
+}
+
+/* ---------- wiring ---------- */
+$('#habits').addEventListener('click',ev=>{
+  const b=ev.target.closest('[data-act]');if(!b)return;
+  const id=b.closest('.habit').dataset.id;
+  if(b.dataset.act==='toggle')toggle(id);else openSheet('edit',id);
+});
+$('#add').addEventListener('click',()=>openSheet('new'));
+$('#d-minus').addEventListener('click',()=>setDayStart(DAYSTART-1));
+$('#d-plus').addEventListener('click',()=>setDayStart(DAYSTART+1));
+const closeAny=()=>{if(openPanel&&openPanel.id==='sheet')closeSheet();else hidePanel();};
+$('#scrim').addEventListener('click',closeAny);
+$('#sheet-close').addEventListener('click',closeSheet);
+document.addEventListener('keydown',ev=>{if(ev.key==='Escape'&&openPanel)closeAny();});
+$('#f-name').addEventListener('input',ev=>{sheet.name=ev.target.value;syncSheet();applyEdit();});
+$('#f-note').addEventListener('input',ev=>{sheet.note=ev.target.value;applyEdit();});
+$('#a-minus').addEventListener('click',()=>{sheet.after=Math.max(1,sheet.after-1);syncSheet();applyEdit();});
+$('#a-plus').addEventListener('click',()=>{sheet.after=Math.min(30,sheet.after+1);syncSheet();applyEdit();});
+$('#f-chance').addEventListener('input',ev=>{sheet.chance=Number(ev.target.value);syncSheet();applyEdit();});
+$('#sheet-ok').addEventListener('click',()=>{
+  if(sheet.mode==='new'){
+    const n=sheet.name.trim();if(!n)return;
+    addHabit(n,sheet.after,sheet.chance,sheet.note);
+  }
+  closeSheet();
+});
+$('#chips').innerHTML=SUGGEST.map(s=>'<button class="chip" type="button">'+esc(s)+'</button>').join('');
+$('#chips').addEventListener('click',ev=>{
+  const c=ev.target.closest('.chip');if(!c)return;
+  sheet.name=c.textContent;$('#f-name').value=sheet.name;syncSheet();
+});
+$('#del').addEventListener('click',()=>{$('#del').hidden=true;$('#del-ask').hidden=false;$('#del-yes').hidden=false;$('#del-no').hidden=false;});
+$('#del-no').addEventListener('click',resetDelete);
+$('#del-yes').addEventListener('click',()=>{const id=sheet.id;closeSheet();deleteHabit(id);});
+
+/* new day while the page stays open */
+function tick(){
+  const t=todayKey();
+  if(t!==curDay){curDay=t;process(true);render();}
+}
+setInterval(tick,30000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)tick();});
+
+/* ---------- adopt remote state ---------- */
+function adopt(R){
+  S=normalize(JSON.parse(JSON.stringify(R)));
+  delete S.appUrl;
+  DAYSTART=S.dayStart;curDay=todayKey();
+  saveLocal();
+  process(true);
+  render();
+  if(sheet.mode==='edit'&&openPanel&&openPanel.id==='sheet'&&!findHabit(sheet.id))closeSheet();
+}
+
+/* ---------- settings panel ---------- */
+let pendingImport=null;
+function openSettings(){
+  $('#f-token').value='';
+  $('#tok-msg').textContent='';
+  resetImport();
+  $('#exp-out').hidden=true;
+  renderSettings();
+  showPanel($('#settings'),'#set-close');
+}
+$('#sync').addEventListener('click',openSettings);
+$('#set-close').addEventListener('click',hidePanel);
+$('#connect').addEventListener('click',async()=>{
+  const t=$('#f-token').value.trim();
+  if(!t){$('#tok-msg').textContent='Füge zuerst den Token ein.';return;}
+  if(!/^(ghp_|github_pat_|gho_)[A-Za-z0-9_]+$/.test(t)){$('#tok-msg').textContent='Das sieht nicht nach einem GitHub-Token aus. Er beginnt mit ghp_.';return;}
+  $('#tok-msg').textContent='';
+  cfg={token:t,gistId:null};saveCfg();
+  ready=false;dirty=false;
+  $('#f-token').value='';
+  await pull();
+});
+$('#sync-now').addEventListener('click',()=>{if(!cfg)return;if(dirty)push();else{lastSync=0;pull();}});
+$('#disconnect').addEventListener('click',()=>{
+  cfg=null;saveCfg();ready=false;dirty=false;clearTimeout(pushTimer);
+  setSync('none');
+});
+
+function resetImport(){
+  pendingImport=null;
+  $('#imp').hidden=false;$('#imp-ask').hidden=true;$('#imp-yes').hidden=true;$('#imp-no').hidden=true;
+  $('#imp-msg').textContent='';
+}
+$('#imp').addEventListener('click',()=>{
+  let obj=null;
+  try{obj=JSON.parse($('#f-import').value.trim());}catch(e){obj=null;}
+  if(!obj||!Array.isArray(obj.habits)){
+    $('#imp-msg').textContent='Das sieht nicht nach Frosty-Daten aus. Kopiere sie in der alten App noch einmal und füge alles ein.';
+    return;
+  }
+  pendingImport=obj;
+  $('#imp-msg').textContent=obj.habits.length+' Habits gefunden.';
+  $('#imp').hidden=true;$('#imp-ask').hidden=false;$('#imp-yes').hidden=false;$('#imp-no').hidden=false;
+});
+$('#imp-no').addEventListener('click',resetImport);
+$('#imp-yes').addEventListener('click',()=>{
+  if(!pendingImport)return;
+  S=normalize(JSON.parse(JSON.stringify(pendingImport)));
+  delete S.appUrl;
+  S.sample=false;
+  DAYSTART=S.dayStart;curDay=todayKey();
+  process(true);
+  persist();
+  render();
+  const n=S.habits.length;
+  resetImport();
+  $('#f-import').value='';
+  $('#imp-msg').textContent='Importiert: '+n+' Habits.'+(cfg?' Sie werden jetzt mit GitHub abgeglichen.':'');
+});
+$('#exp').addEventListener('click',()=>{
+  const txt=JSON.stringify(S);
+  const out=$('#exp-out');
+  const fallback=()=>{out.hidden=false;out.value=txt;try{out.focus();out.select();}catch(e){}};
+  try{
+    navigator.clipboard.writeText(txt).then(()=>toastMany([{t:'Daten kopiert.',w:false}]),fallback);
+  }catch(e){fallback();}
+});
+
+/* ---------- start ---------- */
+process(true);
+render();
+if(cfg)pull();else setSync('none');
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{});});
+}
+})();
+</script>
+</body>
+</html>
